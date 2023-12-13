@@ -2,7 +2,7 @@ use async_graphql::{Object, Schema, EmptySubscription, Context};
 use sqlx::PgPool;
 use time::OffsetDateTime;
 
-use crate::{database::user::{User, UserSession, NewUser}, librus::{client::LibrusClient, self}};
+use crate::{database::user::{User, UserSession, NewUser}, librus::{client::LibrusClient, self, user::APIUsersResponse}, resolvers::user::LibrusUser};
 
 
 pub struct Query {}
@@ -11,6 +11,41 @@ pub struct Query {}
 impl Query {
     async fn health(&self) -> &'static str {
         "Please buy obot"
+    }
+
+    async fn users(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<LibrusUser>> {
+        let user_id = ctx.data::<uuid::Uuid>()?;
+        let pg = ctx.data::<PgPool>()?;
+
+        let user = User::find_by_id(&pg, *user_id).await?;
+
+        if user.is_none() {
+            return Err("User not found".into());
+        }
+
+        let user = user.unwrap();
+
+        let mut librus_client = LibrusClient::new();
+        librus_client.token = Some(user.librus_access_token);
+
+        let users: APIUsersResponse = librus_client.request("https://api.librus.pl/3.0/Users").await?;
+        let users = users.users;
+
+        let librus_users = users
+            .into_iter()
+            .map(|u| {
+                LibrusUser {
+                    account_id: u.account_id,
+                    first_name: u.first_name,
+                    last_name: u.last_name,
+                    group_id: u.group_id,
+                    id: u.id,
+                    is_employee: u.is_employee,
+                }
+            })
+            .collect::<Vec<LibrusUser>>();
+
+        Ok(librus_users)
     }
 }
 
@@ -59,9 +94,9 @@ impl Mutation {
     }
 }
 
-pub fn build_schema(pg: PgPool, redis: redis::Client) -> Schema<Query, Mutation, EmptySubscription> {
+pub type CompassSchema = async_graphql::Schema<Query, Mutation, EmptySubscription>;
+
+pub fn build_schema() -> CompassSchema {
     Schema::build(Query {}, Mutation {}, EmptySubscription)
-        .data(pg)
-        .data(redis)
         .finish()
 }

@@ -31,6 +31,22 @@ pub struct NewUser {
 }
 
 impl User {
+    pub async fn find_by_id(pg: &sqlx::PgPool, id: uuid::Uuid) -> Result<Option<User>, sqlx::Error> {
+        let user = sqlx::query_as!(
+            User,
+            r#"
+                SELECT id, email, password, librus_access_token, next_check_at, is_test_account, first_name, last_name, created_at
+                FROM users
+                WHERE id = $1
+            "#,
+            id
+        )
+        .fetch_optional(pg)
+        .await?;
+
+        Ok(user)
+    }
+
     pub async fn find_by_email(pg: &sqlx::PgPool, email: &str) -> Result<Option<User>, sqlx::Error> {
         let user = sqlx::query_as!(
             User,
@@ -92,13 +108,14 @@ impl UserSession {
     pub async fn find_by_token(redis: &redis::Client, token: &str) -> anyhow::Result<Option<UserSession>> {
         let mut conn = redis.get_async_connection().await?;
 
-        let session: Option<String> = redis::cmd("GET")
+        let session: Option<Vec<u8>> = redis::cmd("GET")
             .arg(token)
             .query_async(&mut conn)
             .await?;
 
+
         if let Some(session) = session {
-            let session: UserSession = rmp_serde::from_slice(session.as_bytes())?;
+            let session: UserSession = rmp_serde::from_slice(session.as_slice())?;
 
             Ok(Some(session))
         } else {
