@@ -1,8 +1,6 @@
 use serde::{Serialize, Deserialize};
-use compass_proc_macros::{LibrusSingular, LibrusPlural};
+use compass_proc_macros::{LibrusSingular, LibrusPlural, librus_structs};
 use super::api::{LibrusTypePlural, LibrusTypeSingular};
-
-use crate::librus_structs;
 
 
 #[derive(Serialize, Deserialize)]
@@ -59,4 +57,4 @@ pub struct APIUser {
     pub is_employee: bool,
 }
 
-librus_structs!(APIUser, APIUserResponse, APIUsersResponse, user, "User", users, "Users");
+librus_structs!(APIUser);

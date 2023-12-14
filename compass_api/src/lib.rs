@@ -1,4 +1,3 @@
-#![feature(concat_idents)]
 use std::env;
 
 use poem::{Server, listener::TcpListener, EndpointExt, middleware::AddData};

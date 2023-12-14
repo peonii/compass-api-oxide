@@ -63,6 +63,21 @@ impl User {
         Ok(user)
     }
 
+    pub async fn update_token(pg: &sqlx::PgPool, id: uuid::Uuid, token: &str) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            r#"
+                UPDATE users
+                SET librus_access_token = $1
+                WHERE id = $2
+            "#,
+            token,
+            id
+        )
+        .execute(pg)
+        .await?;
+
+        Ok(())
+    }
 }
 
 impl NewUser {

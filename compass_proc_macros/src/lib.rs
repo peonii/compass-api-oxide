@@ -70,9 +70,7 @@ pub fn librus_plural(input: TokenStream) -> TokenStream {
 
 #[proc_macro]
 pub fn librus_structs(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as syn::ItemStruct);
-
-    let name = input.ident;
+    let name = parse_macro_input!(input as syn::Ident);
 
     let sing_name = format!("{}Response", name);
     let sing_name = syn::Ident::new(&sing_name, name.span());
@@ -85,8 +83,8 @@ pub fn librus_structs(input: TokenStream) -> TokenStream {
     let name_without_api_lower = name_without_api.to_lowercase();
     let plural_name_without_api_lower = format!("{}s", name_without_api_lower);
 
-    let name_without_api = syn::Ident::new(&name_without_api, name.span());
-    let plural_name_without_api = syn::Ident::new(&plural_name_without_api, name.span());
+    // let name_without_api = syn::Ident::new(&name_without_api, name.span());
+    // let plural_name_without_api = syn::Ident::new(&plural_name_without_api, name.span());
 
     let name_without_api_lower = syn::Ident::new(&name_without_api_lower, name.span());
     let plural_name_without_api_lower = syn::Ident::new(&plural_name_without_api_lower, name.span());

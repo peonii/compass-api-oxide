@@ -1,4 +1,4 @@
-use async_graphql::{Object, Context, Result, SimpleObject, ComplexObject, dataloader::DataLoader};
+use async_graphql::{Object, Context, Result, SimpleObject, ComplexObject, dataloader::DataLoader, FieldError};
 
 use crate::{librus::{notice::APINoticesResponse, client::LibrusClient}, database::user::User};
 
@@ -34,14 +34,30 @@ pub struct NoticeQuery;
 impl NoticeQuery {
     async fn notices(&self, ctx: &Context<'_>) -> Result<Vec<LibrusNotice>> {
         let user = ctx.data::<User>()?;
+        let pg = ctx.data::<sqlx::PgPool>()?;
 
         let mut librus_client = LibrusClient::new();
         librus_client.token = Some(user.librus_access_token.clone());
 
-        let users: APINoticesResponse = librus_client.request("https://api.librus.pl/3.0/SchoolNotices").await?;
-        let users = users.notices;
+        let mut notices = librus_client.request::<APINoticesResponse>("https://api.librus.pl/3.0/SchoolNotices").await;
+        if notices.is_err() {
+            // Try to reauth
+            librus_client.log_in(user.email.clone(), user.password.clone())
+                .await?;
 
-        let librus_notices = users
+            notices = librus_client.request::<APINoticesResponse>("https://api.librus.pl/3.0/SchoolNotices").await;
+
+            if notices.is_err() {
+                return Err(FieldError::from("Failed to fetch notices"));
+            }
+
+            User::update_token(pg, user.id, &librus_client.token.unwrap())
+                .await?;
+        }
+
+        let notices = notices?.notices;
+
+        let librus_notices = notices
             .into_iter()
             .map(|u| {
                 LibrusNotice {

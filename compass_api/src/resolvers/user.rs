@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use async_graphql::{SimpleObject, Object, Context, dataloader::Loader, FieldError};
 use serde::{Serialize, Deserialize};
+use sqlx::PgPool;
 
 use crate::{database::user::User, librus::{client::LibrusClient, user::{APIUsersResponse, APIUser, APIUserResponse}}};
 
@@ -23,12 +24,27 @@ pub struct UserQuery;
 impl UserQuery {
     async fn users(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<LibrusUser>> {
         let user = ctx.data::<User>()?;
+        let pg = ctx.data::<PgPool>()?;
 
         let mut librus_client = LibrusClient::new();
         librus_client.token = Some(user.librus_access_token.clone());
 
-        let users: APIUsersResponse = librus_client.request("https://api.librus.pl/3.0/Users").await?;
-        let users = users.users;
+        let mut users = librus_client.request::<APIUsersResponse>("https://api.librus.pl/3.0/Users").await;
+        if users.is_err() {
+            // Try to reauth
+            librus_client.log_in(user.email.clone(), user.password.clone())
+                .await?;
+
+            users = librus_client.request::<APIUsersResponse>("https://api.librus.pl/3.0/Users").await;
+
+            if users.is_err() {
+                return Err(FieldError::from("Failed to fetch users"));
+            }
+
+            User::update_token(pg, user.id, &librus_client.token.unwrap())
+                .await?;
+        }
+        let users = users?.users;
 
         let librus_users = users
             .into_iter()
