@@ -1,4 +1,9 @@
 use serde::{Serialize, Deserialize};
+use compass_proc_macros::{LibrusSingular, LibrusPlural};
+use super::api::{LibrusTypePlural, LibrusTypeSingular};
+
+use crate::librus_structs;
+
 
 #[derive(Serialize, Deserialize)]
 pub struct UserMeResponse {
@@ -33,7 +38,7 @@ pub struct APIMeResponse {
     pub me: UserMe,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct APIUser {
     #[serde(alias = "AccountId")]
     pub account_id: String,
@@ -54,8 +59,4 @@ pub struct APIUser {
     pub is_employee: bool,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct APIUsersResponse {
-    #[serde(alias = "Users")]
-    pub users: Vec<APIUser>,
-}
+librus_structs!(APIUser, APIUserResponse, APIUsersResponse, user, "User", users, "Users");

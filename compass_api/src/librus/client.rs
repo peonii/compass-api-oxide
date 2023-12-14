@@ -1,10 +1,10 @@
-use std::{sync::Arc, collections::HashMap};
+use std::sync::Arc;
 use reqwest::header::HeaderMap;
 
 use anyhow::Result;
 use serde::{Serialize, Deserialize};
 
-use super::api::LibrusResource;
+use super::api::{LibrusTypeSingular, LibrusTypePlural};
 
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36";
 
@@ -113,6 +113,7 @@ impl LibrusClient {
     where
         T: serde::de::DeserializeOwned,
     {
+        println!("Fetching: {}", url);
         let mut header = HeaderMap::new();
 
         let token = self.token.as_ref().ok_or(anyhow::anyhow!("Not logged in!"))?;
@@ -132,36 +133,32 @@ impl LibrusClient {
         Ok(response)
     }
 
-    pub async fn fetch_resources<T>(&self, resources: Vec<LibrusResource>, one: &str, many: &str) -> Result<Vec<T>>
+    pub async fn fetch_resources<T, Ts, Tp>(&self, ids: Vec<i32>, base_url: &str) -> Result<Vec<T>>
     where
         T: serde::de::DeserializeOwned + Clone,
+        Ts: serde::de::DeserializeOwned + LibrusTypeSingular<T>,
+        Tp: serde::de::DeserializeOwned + LibrusTypePlural<T>,
     {
-        if resources.is_empty() {
-            return Err(anyhow::anyhow!("No resources provided!"));
-        }
+        println!("Fetching: {}", base_url);
+        let mut url = format!("{}", base_url);
 
-        // Cut "https://api.librus.pl/<ver>/" from the url of the first resource
-        let url = &resources[0].url[26..];
-        // Replace all occurences of the resource's id with ""
-        let url = url.replace(&resources[0].id.to_string(), "");
-
-        let mut url = format!("https://api.librus.pl/3.0/{}", url);
-
-        // Add the ids of the resources to the url
-        for resource in resources.iter() {
-            url += resource.id.to_string().as_str();
+        for id in ids.iter() {
+            url += id.to_string().as_str();
+            if id != ids.last().unwrap() {
+                url += ",";
+            }
         }
 
         let mut results: Vec<T> = vec![];
 
-        if resources.len() == 1 {
-            let response = self.request::<HashMap<String, T>>(&url).await?;
-            let response = response.get(one).ok_or(anyhow::anyhow!("Invalid resource!"))?;
+        if ids.len() == 1 {
+            let response = self.request::<Ts>(&url).await?;
+            let response = response.get();
 
             results.push(response.clone());
         } else {
-            let response = self.request::<HashMap<String, Vec<T>>>(&url).await?;
-            let response = response.get(many).ok_or(anyhow::anyhow!("Invalid resource!"))?;
+            let response = self.request::<Tp>(&url).await?;
+            let response = response.get();
 
             for result in response {
                 results.push(result.clone());

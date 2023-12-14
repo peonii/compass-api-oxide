@@ -1,10 +1,10 @@
-use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
+use async_graphql::{http::{playground_source, GraphQLPlaygroundConfig}, dataloader::DataLoader};
 use async_graphql_poem::{GraphQLRequest, GraphQLResponse};
 use poem::{IntoResponse, handler, web::{Html, Data}, http::HeaderMap};
 use sqlx::PgPool;
 use redis::Client;
 
-use crate::{schema::CompassSchema, database::user::UserSession};
+use crate::{schema::CompassSchema, database::user::{UserSession, User}, resolvers::user::LibrusUserLoader};
 
 fn get_token_from_headers(headers: &HeaderMap) -> Option<String> {
     let auth_header = headers.get("Authorization")?;
@@ -31,8 +31,12 @@ pub async fn graphql(
 
         if let Some(session) = session {
             let user = session.user_id;
+            let user = User::find_by_id(pg.0, user).await.unwrap().unwrap();
+            let at = user.librus_access_token.clone();
 
-            req = req.data(user);
+            req = req
+                .data(user)
+                .data(DataLoader::new(LibrusUserLoader::new(at.clone()), tokio::spawn))
         }
     }
 

@@ -2,5 +2,5 @@
 async fn main() {
     dotenvy::dotenv().ok();
 
-    compass::serve().await.unwrap();
+    compass_api::serve().await.unwrap();
 }
